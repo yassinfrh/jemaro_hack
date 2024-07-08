@@ -4,28 +4,28 @@ import sys
 import math
 from matplotlib import pyplot as plt
 
-def segmentColor(img, color, threshold = 40):
-    dist = np.square(img - color)
-    dist = np.sqrt(np.sum(dist, axis=2))
-    _, dist = cv2.threshold(dist, threshold, 255, cv2.THRESH_BINARY_INV)
+def segmentColor(img, color, threshold = 20):
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-    dist = cv2.dilate(dist, np.ones((3,3)))
-    dist = cv2.dilate(dist, np.ones((3,3)))
-    dist = cv2.dilate(dist, np.ones((3,3)))
-
-    dist = cv2.erode(dist, np.ones((3,3)))
-    dist = cv2.erode(dist, np.ones((3,3)))
-    dist = cv2.erode(dist, np.ones((3,3)))
+    mask = cv2.inRange(hsv, np.array([color-threshold, 100, 100]), np.array([color+threshold, 255, 255]))        
     
-    dist = cv2.erode(dist, np.ones((3,3)))
-    dist = cv2.erode(dist, np.ones((3,3)))
-    dist = cv2.erode(dist, np.ones((3,3)))
-    
-    dist = cv2.dilate(dist, np.ones((3,3)))
-    dist = cv2.dilate(dist, np.ones((3,3)))
-    dist = cv2.dilate(dist, np.ones((3,3)))
+    mask = cv2.dilate(mask, np.ones((3,3)))
+    mask = cv2.dilate(mask, np.ones((3,3)))
+    mask = cv2.dilate(mask, np.ones((3,3)))
 
-    return dist.astype(np.uint8)
+    mask = cv2.erode(mask, np.ones((3,3)))
+    mask = cv2.erode(mask, np.ones((3,3)))
+    mask = cv2.erode(mask, np.ones((3,3)))
+    
+    mask = cv2.erode(mask, np.ones((3,3)))
+    mask = cv2.erode(mask, np.ones((3,3)))
+    mask = cv2.erode(mask, np.ones((3,3)))
+    
+    mask = cv2.dilate(mask, np.ones((3,3)))
+    mask = cv2.dilate(mask, np.ones((3,3)))
+    mask = cv2.dilate(mask, np.ones((3,3)))
+
+    return mask.astype(np.uint8)
 
 def contourProps(contour):
     mu = cv2.moments(contour)
@@ -146,13 +146,22 @@ def localizeShapes(shapes, radius, cameraInfo):
 if __name__=="__main__":
 
     fname = sys.argv[1]
-    colors = {
+    '''colors = {
         "yellow": [49, 128, 144],
         "navy": [64, 32, 0],
         "purple": [53, 32, 66],
         "green": [72, 103, 11],
         "blue": [128, 64, 0],
         "red": [0, 0, 128]
+    }'''
+
+    colors = {
+        "yellow": 60,
+        "navy": 240,
+        "purple": 300,
+        "green": 120,
+        "blue": 210,
+        "red": 0
     }
 
     cameraInfo = {

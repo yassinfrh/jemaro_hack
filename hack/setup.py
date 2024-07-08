@@ -20,6 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'obj_detection = hack.obj_detection:main',
+            'shapes = hack.shapes:main',
         ],
     },
 )
