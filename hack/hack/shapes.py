@@ -4,10 +4,10 @@ import sys
 import math
 from matplotlib import pyplot as plt
 
-def segmentColor(img, color, threshold = 20):
+def segmentColor(img, color, threshold = 2):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-    mask = cv2.inRange(hsv, np.array([color-threshold, 100, 100]), np.array([color+threshold, 255, 255]))        
+    mask = cv2.inRange(hsv, np.array([color-threshold, 70, 70]), np.array([color+threshold, 255, 255]))        
     
     mask = cv2.dilate(mask, np.ones((3,3)))
     mask = cv2.dilate(mask, np.ones((3,3)))
@@ -109,12 +109,12 @@ def detectShapes(img, colors):
     return shapes
 
 def drawShapes(img, shapes, colors):
-    out = img.copy() // 3
+    out = img.copy()# // 3
 
     for shp in shapes:
         cc = shp['center']
         
-        cv2.drawContours(out, [shp['cnt']], -1, colors[shp['color']], 2)
+        cv2.drawContours(out, [shp['cnt']], -1, (0, 0, 0), 2)
 
         x = int(cc[0] + shp['rad'] * math.cos(shp['ori']))
         y = int(cc[1] + shp['rad'] * math.sin(shp['ori']))
@@ -122,7 +122,8 @@ def drawShapes(img, shapes, colors):
         cv2.line(out, cc, [x, y], (255, 255, 255), 1)
 
         (px, py, pz) = shp['pos']
-        cv2.putText(out, f"{shp['color']} | {shp['corners']} | {px:.2f}, {py:.2f}, {pz:.2f}", (x, y), cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255))
+
+        cv2.putText(out, f"{round(shp['ori'], 2)} | {shp['color']} | {shp['corners']} | {px:.2f}, {py:.2f}, {pz:.2f}", (x, y), cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255))
 
     return out
 

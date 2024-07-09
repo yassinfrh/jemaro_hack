@@ -13,6 +13,8 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Target.msg"
+  "msg/Shape.msg"
+  "msg/ListShape.msg"
 )
 
 
