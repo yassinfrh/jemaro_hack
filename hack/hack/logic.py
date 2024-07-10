@@ -14,6 +14,21 @@ RES = "null"
 # Vector from the end effector to the suction cup
 EE_to_suction = np.array([60.0, 0.0, -75.0]) # [mm]
 
+# Apply offset of the tool frame to the goal
+def apply_offset(x, y):
+        # Transform goal to  polar coordinates
+        [r, phi] = cart2pol(x, y) 
+        # represent offset in polar
+        [r_off, phi_off] = cart2pol(60, 0)
+
+        # Add it up
+        r = r + r_off
+        phi = phi + phi_off
+
+        # Go back to cartesian
+        [new_x, new_y] = [r*np.cos(phi), r*np.sin(phi)]
+        return new_x, new_y
+
 # Class for the logic of the robot
 class Logic(Node):
     def __init__(self):
@@ -171,27 +186,16 @@ class Logic(Node):
         # x = pick['position'][0]
         # y = pick['position'][1]
         z = pick['position'][2] + 55.0
-        # orientation = -120.0
+        orientation = -120.0
 
-        # Transform goal to  polar coordinates
-        [r, theta, phi] = cart2pol(pick['position'][0],pick['position'][1]) 
-        # represent offset in polar
-        [r_off,theta_off, phi_off] = cart2pol(60, 0)
-
-        # Add it up
-        r = r + r_off
-        theta = theta + theta_off
-        phi = phi + phi_off
-
-        # Go back to cartesian
-        [x, y] = [r*np.cos(theta), r*np.sin(theta)]
-
+        x, y = apply_offset(pick['position'][0], pick['position'][1]);
         
         # [x, y, z] = [x, y, z] #+ EE_to_suction
         
         print(f'x{x} y{y} z{z}')
 
         # [x, y, z] = [208.213, 1.25, -62.955 + 45.0]
+
 
         pose = [x, y, z, orientation]
         motion_type = 1
@@ -238,10 +242,13 @@ class Logic(Node):
         RES = "null"
 
         # Drive the robot to the place position
-        x = place['position'][0]
-        y = place['position'][1]
+        # x = place['position'][0]
+        # y = place['position'][1]
         z = place['position'][2] + 100.0
         orientation = -120.0
+
+        # Apply Offset to the place
+        x, y = apply_offset(place['position'][0], place['position'][1]);
 
         pose = [x, y, z, orientation]
         motion_type = 1
@@ -255,7 +262,7 @@ class Logic(Node):
         RES = "null"
 
 
-        # Turn off the suction cup
+        # Turn off the suction cup~
         request = SuctionCupControl.Request()
         request.enable_suction = False
         self.suction_client.call_async(request)
