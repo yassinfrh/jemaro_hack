@@ -38,51 +38,28 @@ class Logic(Node):
 
         self.shapes = []
 
+        self.detected_shapes = []
+
 
     def shapes_callback(self, msg):
         global RES
 
         if self.going_to_start:
             return
+        
+        # print(len(msg.shapes))
 
-        # Assume the positions and orientations of the objects are in absolute coordinates
         # For each shape
         for s in msg.shapes:
             # Extract info from the message
             shape = {
                 'shape': s.shape,
                 'color': s.color,
-                'position': [s.x, s.y, s.z],
+                'position': [s.x * 1000 , s.y * 1000, s.z * 1000],
                 'orientation': s.o
             }
 
-            close = False
-
-            # Append the shape if the same type of shape is not close
-            for sh in self.shapes:
-                if sh['shape'] == shape['shape']:
-                    if abs(sh['position'][0] - shape['position'][0]) < 0.01 and abs(sh['position'][1] - shape['position'][1]) < 0.01:
-                        close = True
-                        break
-            if not close:
-                self.shapes.append(shape)
-
-        # If two same shapes are in the detected shapes, cancel the exploration and start the pick and place
-        for i in range(len(self.shapes)):
-            for j in range(i+1, len(self.shapes)):
-                if self.shapes[i]['shape'] == self.shapes[j]['shape']:
-                    '''# Print the name of the shapes that are the same
-                    self.get_logger().info('Found two same shapes')
-                    self.get_logger().info(self.shapes[i]['shape'])    
-
-                    # Wait for the robot to reach the final position
-                    while rclpy.ok() and RES == "null":
-                        rclpy.spin_once(self)
-                    RES = "null"                
-                    
-                    self.pick_and_place(self.shapes[i], self.shapes[j])'''
-
-                    return
+            self.detected_shapes.append(shape)
 
 
     def send_goal(self, pose, motion_type, velocity_ratio=1.0):
@@ -141,6 +118,41 @@ class Logic(Node):
         pose = [x, y, z, orientation]
         motion_type = 4
         self.send_goal(pose, motion_type, velocity_ratio)
+                
+    def look_for_shapes(self):
+        global RES
+
+        # Spin once
+        rclpy.spin_once(self)
+
+        close = False
+
+
+        # Append the shape if the same type of shape is not close
+        for shape in self.detected_shapes:
+            for sh in self.shapes:
+                if sh['shape'] == shape['shape']:
+                    # print(f"sh{sh['position'][0]} shape{shape['position'][0]}")
+                    # print(f"sh{sh['position'][1]} shape{shape['position'][1]}")
+                    if abs(sh['position'][0] - shape['position'][0]) < 15 and abs(sh['position'][1] - shape['position'][1]) < 15:
+                        close = True
+                        break
+            if not close:
+                print('IM HERE')
+                self.shapes.append(shape)
+        
+
+        # If two same shapes are in the detected shapes, start the pick and place
+        for i in range(len(self.shapes)):
+            for j in range(i+1, len(self.shapes)):
+                if self.shapes[i]['shape'] == self.shapes[j]['shape']:
+                    # Print the name of the shapes that are the same
+                    self.get_logger().info('Found two same shapes')
+                    self.get_logger().info(self.shapes[i]['shape'])    
+
+                    return self.shapes[i], self.shapes[j] 
+                
+        return None
 
     def pick_and_place(self, shape1, shape2):
         global RES
@@ -159,14 +171,17 @@ class Logic(Node):
         z = pick['position'][2] + 50.0
         orientation = -120.0
 
-        [x, y, z] = [x, y, z] + EE_to_suction
+        [x, y, z] = [x - 30, y, z] #+ EE_to_suction
+        
+        print(f'x{x} y{y} z{z}')
 
-        [x, y, z] = [208.213, 1.25, -62.955 + 50.0]
+        # [x, y, z] = [208.213, 1.25, -62.955 + 45.0]
 
         pose = [x, y, z, orientation]
         motion_type = 1
 
         print('sending goal to pick the object')
+        
         self.send_goal(pose, motion_type)
 
         print('Sent goal to pick the object')
@@ -174,13 +189,12 @@ class Logic(Node):
         # Wait for the robot to reach the starting position
         while rclpy.ok() and RES == "null":
             rclpy.spin_once(self)
-            print('wating...')
         RES = "null"
 
         print('going down')
 
         # Drive the robot down to the object
-        pose = [x, y, z-50.0, orientation]
+        pose = [x, y, z, orientation]
         self.send_goal(pose, motion_type)
 
         # Wait for the robot to reach the starting position
@@ -194,7 +208,9 @@ class Logic(Node):
         self.suction_client.call_async(request)
 
         # Drive the robot up
-        z = z + 50.0
+        z = z + 150.0
+
+        print('going up')
 
         pose = [x, y, z, orientation]
         motion_type = 1
@@ -204,6 +220,30 @@ class Logic(Node):
         while rclpy.ok() and RES == "null":
             rclpy.spin_once(self)
         RES = "null"
+
+        # Drive the robot to the place position
+        x = place['position'][0]
+        y = place['position'][1]
+        z = place['position'][2] + 100.0
+        orientation = -120.0
+
+        pose = [x, y, z, orientation]
+        motion_type = 1
+
+        print('going to place the object')
+        self.send_goal(pose, motion_type)
+
+          # Wait for the robot to reach the starting position
+        while rclpy.ok() and RES == "null":
+            rclpy.spin_once(self)
+        RES = "null"
+
+
+        # Turn off the suction cup
+        request = SuctionCupControl.Request()
+        request.enable_suction = False
+        self.suction_client.call_async(request)
+
 
 
 def main(args=None):
@@ -222,9 +262,22 @@ def main(args=None):
 
     logic.going_to_start = False
 
-    #logic.explore()
+    logic.explore()
 
-    logic.pick_and_place({'shape': 'triangle', 'color': 'blue', 'position': [0.0, 0.0, 0.0], 'orientation': 0.0}, {'shape': 'circle', 'color': 'red', 'position': [0.0, 0.0, 0.0], 'orientation': 0.0})
+    objects = logic.look_for_shapes()
+    while objects == None:
+        objects = logic.look_for_shapes()
+
+    # Wait for the robot to reach the final position
+    while rclpy.ok() and RES == "null":
+        rclpy.spin_once(logic)
+    RES = "null"          
+
+    print('going to pick and place')      
+    
+    logic.pick_and_place(objects[0], objects[1])
+
+    # logic.pick_and_place({'shape': 'triangle', 'color': 'blue', 'position': [0.0, 0.0, 0.0], 'orientation': 0.0}, {'shape': 'circle', 'color': 'red', 'position': [0.0, 0.0, 0.0], 'orientation': 0.0})
 
     rclpy.spin(logic)
 

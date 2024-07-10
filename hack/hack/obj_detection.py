@@ -4,9 +4,12 @@ from sensor_msgs.msg import Image, CameraInfo
 from .shapes import detectShapes, localizeShapes, drawShapes, contourProps, countCorners
 from cv_bridge import CvBridge
 from custom_msgs_pkg.msg import Shape, ListShape
+import tf2_ros
+from scipy.spatial.transform import Rotation
 
 import cv2
 import numpy as np
+import PIL
 
 # Colors in BGR
 colors = {
@@ -51,8 +54,41 @@ class ObjectDetection(Node):
         self.shape_pub = self.create_publisher(ListShape, '/shapes', 10)
         
         self.bridge = CvBridge()
-        self.camera_info = {'k': [0, 0, 0, 0, 0, 0, 0, 0, 0]}
+        self.camera_info = {'k': [1, 1, 1, 1, 1, 1, 1, 1, 1]}
         self.shapes = []
+
+        # TransformListener
+        self.tfBuffer = tf2_ros.Buffer()
+        self.tfListener = tf2_ros.TransformListener(self.tfBuffer, self)
+        self.from_frame = 'magician_base_link'
+        self.to_frame =  'camera_lens'
+
+        # Timer for lookup transform
+        self.timer = self.create_timer(0.1, self.timer_callback)
+
+        self.T = np.eye(4)
+
+    def timer_callback(self):
+        try:
+            # Trans is in the form of geometry_msgs.msg.TransformStamped
+            trans = self.tfBuffer.lookup_transform(self.from_frame, self.to_frame, rclpy.time.Time())
+
+            # Convert quaternion to rotation matrix
+            rot = Rotation.from_quat([trans.transform.rotation.x, trans.transform.rotation.y, trans.transform.rotation.z, trans.transform.rotation.w])
+
+            # Get the translation
+            [x, y, z] = [trans.transform.translation.x, trans.transform.translation.y, trans.transform.translation.z]
+
+            # Build the transformation matrix
+            self.T = np.eye(4)
+            self.T[:3, :3] = rot.as_matrix()
+            self.T[:3, 3] = [x, y, z]
+               
+        except tf2_ros.TransformException as ex:
+                    self.get_logger().warn(
+                        f'Could not transform {self.from_frame} to {self.to_frame}: {ex}')
+                    return
+        
 
     def image_callback(self, msg):
         # Convert ROS image to OpenCV image using cv_bridge
@@ -169,17 +205,43 @@ class ObjectDetection(Node):
         msg = ListShape()
         msg.shapes = []
         for shape in self.shapes:
-            s = Shape()
+            s = Shape()        #print(self.detected_shapes)
+
 
             if shape['corners'] not in shapes_dic:
                 continue
 
             s.shape = shapes_dic[shape['corners']]
             s.color = shape['color']
-            s.x = shape['pos'][0]
-            s.y = shape['pos'][1]
-            s.z = shape['pos'][2]
-            s.o = shape['ori']
+            x = shape['pos'][0]
+            y = shape['pos'][1]
+            z = shape['pos'][2]
+
+            #print(f'x{x} y{y} z{z}')
+
+            # Convert angle to rad
+            angle = np.deg2rad(shape['ori']) 
+
+
+            # Build rotation matrix from angle around z-axis
+            rot = np.array([[np.cos(angle), -np.sin(angle), 0],
+                            [np.sin(angle), np.cos(angle), 0],
+                            [0, 0, 1]])
+            
+            # Build the transformation matrix
+            T_obj = np.eye(4)
+            T_obj[:3, :3] = rot
+            T_obj[:3, 3] = [x, y, z]
+
+            # Compute transformation from from base to object
+            T_base_obj = self.T @ T_obj
+
+            # Extract position and orientation as angle in degrees
+            s.x = T_base_obj[0, 3]
+            s.y = T_base_obj[1, 3]
+            s.z = T_base_obj[2, 3]
+            s.o = np.rad2deg(Rotation.from_matrix(T_base_obj[:3, :3]).as_euler('zyx')[0])
+
             msg.shapes.append(s)
         self.shape_pub.publish(msg)
 

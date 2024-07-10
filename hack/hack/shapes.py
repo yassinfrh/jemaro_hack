@@ -135,7 +135,7 @@ def localizeShapes(shapes, radius, cameraInfo):
     cy = cameraInfo['k'][5]
 
     for shp in shapes:
-        z = fx * radius / shp['rad']
+        z = 0.3  #fx * radius / shp['rad']
         x = z * (shp['center'][0]-cx) / fx
         y = z * (shp['center'][1]-cy) / fy
 
