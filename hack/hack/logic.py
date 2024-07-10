@@ -7,6 +7,8 @@ from dobot_msgs.srv import SuctionCupControl
 from scipy.spatial.transform import Rotation
 import numpy as np
 
+from .shapes import cart2pol
+
 RES = "null"
 
 # Vector from the end effector to the suction cup
@@ -165,13 +167,27 @@ class Logic(Node):
             pick = shape2
             place = shape1
 
-        # Drive the suction cup above the object to pick
-        x = pick['position'][0]
-        y = pick['position'][1]
-        z = pick['position'][2] + 50.0
-        orientation = -120.0
+        # # Drive the suction cup above the object to pick
+        # x = pick['position'][0]
+        # y = pick['position'][1]
+        z = pick['position'][2] + 55.0
+        # orientation = -120.0
 
-        [x, y, z] = [x - 30, y, z] #+ EE_to_suction
+        # Transform goal to  polar coordinates
+        [r, theta, phi] = cart2pol(pick['position'][0],pick['position'][1]) 
+        # represent offset in polar
+        [r_off,theta_off, phi_off] = cart2pol(60, 0)
+
+        # Add it up
+        r = r + r_off
+        theta = theta + theta_off
+        phi = phi + phi_off
+
+        # Go back to cartesian
+        [x, y] = [r*np.cos(theta), r*np.sin(theta)]
+
+        
+        # [x, y, z] = [x, y, z] #+ EE_to_suction
         
         print(f'x{x} y{y} z{z}')
 
