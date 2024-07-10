@@ -81,6 +81,8 @@ class ObjectDetection(Node):
             edge, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE) 
         
         i = 0
+
+        self.shapes = []
         
         # list for storing names of shapes 
         for contour in contours: 
@@ -99,7 +101,7 @@ class ObjectDetection(Node):
             cp = contourProps(contour)
 
             # If the area of contour is less than 1000 or greater than 20000, ignore it
-            if cp['ca'] < 1000 or cp['ca'] > 18000:
+            if cp['ca'] < 1000 or cp['ca'] > 16000:
                 continue
 
             # reject non-regular (elongated) shapes
@@ -168,6 +170,10 @@ class ObjectDetection(Node):
         msg.shapes = []
         for shape in self.shapes:
             s = Shape()
+
+            if shape['corners'] not in shapes_dic:
+                continue
+
             s.shape = shapes_dic[shape['corners']]
             s.color = shape['color']
             s.x = shape['pos'][0]

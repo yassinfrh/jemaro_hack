@@ -22,6 +22,7 @@ setup(
         'console_scripts': [
             'obj_detection = hack.obj_detection:main',
             'shapes = hack.shapes:main',
+            'logic = hack.logic:main',
         ],
     },
 )
