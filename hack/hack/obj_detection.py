@@ -83,6 +83,8 @@ class ObjectDetection(Node):
             self.T = np.eye(4)
             self.T[:3, :3] = rot.as_matrix()
             self.T[:3, 3] = [x, y, z]
+
+            #print(self.T)
                
         except tf2_ros.TransformException as ex:
                     self.get_logger().warn(
@@ -94,8 +96,21 @@ class ObjectDetection(Node):
         # Convert ROS image to OpenCV image using cv_bridge
         img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
 
+        # Convert to HSV
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+        # Threshold the image to get only the colors
+        mask = cv2.inRange(hsv, (0, 90, 0), (180, 255, 255))
+
+        # Bitwise-AND mask and original image
+        res = cv2.bitwise_and(img, img, mask=mask)
+
+        # Show the image
+        cv2.imshow('Image', res)
+        cv2.waitKey(1)
+
         # Convert to grey scale
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(res, cv2.COLOR_BGR2GRAY)
 
         # Blur the image
         blur = cv2.GaussianBlur(gray, (3, 3), 0)
@@ -137,7 +152,7 @@ class ObjectDetection(Node):
             cp = contourProps(contour)
 
             # If the area of contour is less than 1000 or greater than 20000, ignore it
-            if cp['ca'] < 1000 or cp['ca'] > 16000:
+            if cp['ca'] < 1000 or cp['ca'] > 20000:
                 continue
 
             # reject non-regular (elongated) shapes
@@ -160,10 +175,28 @@ class ObjectDetection(Node):
                 'cnt': contour
             }
 
-            # Append the shape to the list of shapes if another one is not too close
+            '''# Append the shape to the list of shapes if another one is not too close
             if len(self.shapes) == 0 or np.linalg.norm(np.array(shape['center']) - np.array(self.shapes[-1]['center'])) > 50:
                 self.shapes.append(shape)
-        
+            # Otherwise update the position of the shape
+            else:
+                self.shapes[-1] = shape'''
+            
+            # Check if the shape is already in the list (close to another shape)
+            close = False
+            idx = -1
+            for i, sh in enumerate(self.shapes):
+                if np.linalg.norm(np.array(shape['center']) - np.array(sh['center'])) < 50:
+                    close = True
+                    idx = i
+                    break
+
+            # If the shape is close to another one, update the position
+            if close:
+                self.shapes[idx] = shape
+            else:
+                self.shapes.append(shape)
+
             # cv2.approxPloyDP() function to approximate the shape 
             '''approx = cv2.approxPolyDP( 
                 contour, 0.02 * cv2.arcLength(contour, True), True) 

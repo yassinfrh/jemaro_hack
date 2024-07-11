@@ -14,21 +14,6 @@ RES = "null"
 # Vector from the end effector to the suction cup
 EE_to_suction = np.array([60.0, 0.0, -75.0]) # [mm]
 
-# Apply offset of the tool frame to the goal
-def apply_offset(x, y):
-        # Transform goal to  polar coordinates
-        [r, phi] = cart2pol(x, y) 
-        # represent offset in polar
-        [r_off, phi_off] = cart2pol(60, 0)
-
-        # Add it up
-        r = r + r_off
-        phi = phi + phi_off
-
-        # Go back to cartesian
-        [new_x, new_y] = [r*np.cos(phi), r*np.sin(phi)]
-        return new_x, new_y
-
 # Class for the logic of the robot
 class Logic(Node):
     def __init__(self):
@@ -143,20 +128,25 @@ class Logic(Node):
         rclpy.spin_once(self)
 
         close = False
-
+        idx = -1
 
         # Append the shape if the same type of shape is not close
         for shape in self.detected_shapes:
-            for sh in self.shapes:
+            for i, sh in enumerate(self.shapes):
                 if sh['shape'] == shape['shape']:
                     # print(f"sh{sh['position'][0]} shape{shape['position'][0]}")
                     # print(f"sh{sh['position'][1]} shape{shape['position'][1]}")
                     if abs(sh['position'][0] - shape['position'][0]) < 15 and abs(sh['position'][1] - shape['position'][1]) < 15:
                         close = True
+                        idx = i
                         break
             if not close:
                 print('IM HERE')
                 self.shapes.append(shape)
+            else:
+                # Update the position of the shape
+                self.shapes[idx] = shape
+
         
 
         # If two same shapes are in the detected shapes, start the pick and place
@@ -183,12 +173,35 @@ class Logic(Node):
             place = shape1
 
         # # Drive the suction cup above the object to pick
-        # x = pick['position'][0]
-        # y = pick['position'][1]
-        z = pick['position'][2] + 55.0
+        x = pick['position'][0]
+        y = pick['position'][1]
+        z = -70.0
         orientation = -120.0
 
-        x, y = apply_offset(pick['position'][0], pick['position'][1]);
+        print(f'x{x} y{y} z{z}')
+
+        # Transform goal to  polar coordinates
+        [r, phi] = cart2pol(pick['position'][0],pick['position'][1]) 
+        # represent offset in polar
+        # [r_off, phi_off] = cart2pol(-30, 0)
+
+        # Add it up
+        r = r - 25
+
+        if y < 0:
+            phi = phi + np.deg2rad(4.5)
+            r = r - 10
+
+
+        # Go back to cartesian
+        [x, y] = [r*np.cos(phi), r*np.sin(phi)]
+
+        if y > 100.0:  
+            y = y - 100.0
+
+        if y < -150.0:
+            y = y + 100.0
+
         
         # [x, y, z] = [x, y, z] #+ EE_to_suction
         
@@ -196,8 +209,7 @@ class Logic(Node):
 
         # [x, y, z] = [208.213, 1.25, -62.955 + 45.0]
 
-
-        pose = [x, y, z, orientation]
+        pose = [x, y, z + 50, orientation]
         motion_type = 1
 
         print('sending goal to pick the object')
@@ -242,15 +254,32 @@ class Logic(Node):
         RES = "null"
 
         # Drive the robot to the place position
-        # x = place['position'][0]
-        # y = place['position'][1]
-        z = place['position'][2] + 100.0
-        orientation = -120.0
+        x = place['position'][0]
+        y = place['position'][1]
+        z = -70.0
+        orientation = -120.0 + np.rad2deg(np.abs(np.abs(place['orientation']) - np.abs(pick['orientation'])))
 
-        # Apply Offset to the place
-        x, y = apply_offset(place['position'][0], place['position'][1]);
+        print('orientation' + str(orientation))
 
-        pose = [x, y, z, orientation]
+        # Transform goal to  polar coordinates
+        [r, phi] = cart2pol(place['position'][0],place['position'][1]) 
+        # represent offset in polar
+        # [r_off, phi_off] = cart2pol(-30, 0)
+
+        # Add it up
+        r = r - 37
+
+        # If y is negative
+        if y < 0:
+            phi = phi + np.deg2rad(4.5)
+        else:
+            r = r + 10
+            phi = phi - np.deg2rad(2.0)
+
+        # Go back to cartesian
+        [x, y] = [r*np.cos(phi), r*np.sin(phi)]
+
+        pose = [x, y, z + 50, orientation]
         motion_type = 1
 
         print('going to place the object')
@@ -261,11 +290,29 @@ class Logic(Node):
             rclpy.spin_once(self)
         RES = "null"
 
+        pose = [x, y, z, orientation]
+        self.send_goal(pose, motion_type)
 
-        # Turn off the suction cup~
+        # Wait for the robot to reach the starting position
+        while rclpy.ok() and RES == "null":
+            rclpy.spin_once(self)
+        RES = "null"
+
+
+        # Turn off the suction cup
         request = SuctionCupControl.Request()
         request.enable_suction = False
         self.suction_client.call_async(request)
+
+        # Drive the robot up
+        pose = [x, y, z + 150, orientation]
+        motion_type = 1
+        self.send_goal(pose, motion_type)
+
+        # Wait for the robot to reach the starting position
+        while rclpy.ok() and RES == "null":
+            rclpy.spin_once(self)
+        RES = "null"
 
 
 
